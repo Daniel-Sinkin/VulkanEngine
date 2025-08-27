@@ -34,3 +34,5 @@ bool g_SwapChainRebuild = false;
 ImGuiIO *g_IO;
 
 bool g_IsRunning = true;
+
+glm::vec4 g_ClearColor{0.45f, 0.55f, 0.60f, 1.0f};

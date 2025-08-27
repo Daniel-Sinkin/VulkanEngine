@@ -26,6 +26,7 @@
 
 #include "engine.hpp"
 #include "global.hpp"
+#include "gui.hpp"
 #include "io.hpp"
 #include "util.hpp"
 #include "vulkan_util.hpp"
@@ -45,7 +46,6 @@ int main() {
     Engine::setup();
 
     bool show_demo_window = true;
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.0f);
 
     while (g_IsRunning) {
         SDL_Event event;
@@ -58,38 +58,22 @@ int main() {
         }
         Engine::recreate_swapchains_if_necessary();
 
+        // Reset Frame
         ImGui_ImplVulkan_NewFrame();
         ImGui_ImplSDL3_NewFrame();
+
+        // GUI
         ImGui::NewFrame();
-
-        {
-            static float f = 0.0f;
-            static int counter = 0;
-
-            ImGui::Begin("Hello, Window!");
-
-            ImGui::Text("This is some useful text.");
-            ImGui::Checkbox("Demo Window", &show_demo_window);
-
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
-            ImGui::ColorEdit3("clear color", (float *)&clear_color);
-
-            if (ImGui::Button("Button")) counter++;
-            ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);
-
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / g_IO->Framerate, g_IO->Framerate);
-            ImGui::End();
-        }
-
+        GUI::debug();
         ImGui::Render();
+
         ImDrawData *draw_data = ImGui::GetDrawData();
         const bool is_minimized = (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f);
         if (!is_minimized) {
-            g_MainWindowData.ClearValue.color.float32[0] = clear_color.x * clear_color.w;
-            g_MainWindowData.ClearValue.color.float32[1] = clear_color.y * clear_color.w;
-            g_MainWindowData.ClearValue.color.float32[2] = clear_color.z * clear_color.w;
-            g_MainWindowData.ClearValue.color.float32[3] = clear_color.w;
+            g_MainWindowData.ClearValue.color.float32[0] = g_ClearColor.x * g_ClearColor.w;
+            g_MainWindowData.ClearValue.color.float32[1] = g_ClearColor.y * g_ClearColor.w;
+            g_MainWindowData.ClearValue.color.float32[2] = g_ClearColor.z * g_ClearColor.w;
+            g_MainWindowData.ClearValue.color.float32[3] = g_ClearColor.w;
             Engine::FrameRender(&g_MainWindowData, draw_data);
             Engine::FramePresent(&g_MainWindowData);
         }
