@@ -37,6 +37,9 @@ using Vulkan::Extension;
 using Vulkan::ValidationLayer;
 
 namespace DS::Engine {
+
+constexpr bool log_setup = false;
+
 void setup_vulkan(std::vector<Vulkan::Extension> extensions) {
     VkResult err;
 
@@ -49,11 +52,12 @@ void setup_vulkan(std::vector<Vulkan::Extension> extensions) {
     properties.resize(properties_count);
     Vulkan::check(vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, properties.data()));
 
-    println("[Vulkan] Info: Availiable Extensions");
-    for (const auto &p : properties)
-        println("[Vulkan] Info: \t{}", p);
+    if (log_setup) println("[Vulkan] Info: Availiable Extensions");
+    for (const auto &p : properties) {
+        if (log_setup) println("[Vulkan] Info: \t{}", p);
+    }
 
-    println("[Vulkan] Info: Enabling required extensions");
+    if (log_setup) println("[Vulkan] Info: Enabling required extensions");
     {
         Extension ext = VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME;
         if (Vulkan::check_extension(properties, ext)) extensions.push_back(ext);
@@ -65,7 +69,7 @@ void setup_vulkan(std::vector<Vulkan::Extension> extensions) {
         }
     }
 
-    println("[Vulkan] Info: Enabling validation layers");
+    if (log_setup) println("[Vulkan] Info: Enabling validation layers");
     {
         ValidationLayer layers[] = {Vulkan::Strings::layer_validation};
         create_info.enabledLayerCount = 1;
@@ -74,14 +78,14 @@ void setup_vulkan(std::vector<Vulkan::Extension> extensions) {
         extensions.push_back(Vulkan::Strings::extension_debug_report);
     }
 
-    println("[Vulkan] Info: Creating Vulkan Instance");
+    if (log_setup) println("[Vulkan] Info: Creating Vulkan Instance");
     { // Create Vulkan Instance
         create_info.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
         create_info.ppEnabledExtensionNames = extensions.data();
         Vulkan::check(vkCreateInstance(&create_info, g_Allocator, &g_Instance));
     }
 
-    println("[Vulkan] Info: Setup the debug report callback");
+    if (log_setup) println("[Vulkan] Info: Setup the debug report callback");
     { // Setup the debug report callback
         auto f_vkCreateDebugReportCallbackEXT = reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>(
             vkGetInstanceProcAddr(g_Instance, Vulkan::Strings::vkCreateDebugReportCallbackEXT));
@@ -97,25 +101,25 @@ void setup_vulkan(std::vector<Vulkan::Extension> extensions) {
         Vulkan::check(f_vkCreateDebugReportCallbackEXT(g_Instance, &debug_report_ci, g_Allocator, &g_DebugReport));
     }
 
-    println("[Vulkan] Info: Select physical device");
+    if (log_setup) println("[Vulkan] Info: Select physical device");
     {
         g_PhysicalDevice = ImGui_ImplVulkanH_SelectPhysicalDevice(g_Instance);
         if (g_PhysicalDevice == VK_NULL_HANDLE) {
-            println(stderr, "[Vulkan] Error: Failed to select physical device!");
+            if (log_setup) println(stderr, "[Vulkan] Error: Failed to select physical device!");
             abort();
         }
     }
 
-    println("[Vulkan] Info: Select graphics queue family");
+    if (log_setup) println("[Vulkan] Info: Select graphics queue family");
     {
         g_QueueFamily = ImGui_ImplVulkanH_SelectQueueFamilyIndex(g_PhysicalDevice);
         if (g_QueueFamily == static_cast<uint32_t>(-1)) {
-            println(stderr, "[Vulkan] Error: Failed to select graphics queue family!");
+            if (log_setup) println(stderr, "[Vulkan] Error: Failed to select graphics queue family!");
             abort();
         }
     }
 
-    println("[Vulkan] Info: Creating Logical Device (with 1 queue)");
+    if (log_setup) println("[Vulkan] Info: Creating Logical Device (with 1 queue)");
     {
         std::vector<Extension> device_extensions;
         device_extensions.push_back("VK_KHR_swapchain");
@@ -157,7 +161,7 @@ void setup_vulkan(std::vector<Vulkan::Extension> extensions) {
         vkGetDeviceQueue(g_Device, g_QueueFamily, 0, &g_Queue);
     }
 
-    println("[Vulkan] Info: Creating Descriptor Pool");
+    if (log_setup) println("[Vulkan] Info: Creating Descriptor Pool");
     {
         VkDescriptorPoolSize pool_sizes[] =
             {
@@ -191,7 +195,7 @@ void setup_vulkan_window(ImGui_ImplVulkanH_Window *wd, VkSurfaceKHR surface, int
         wd->Surface,
         &res);
     if (res != VK_TRUE) {
-        println(stderr, "[Vulkan] Error: No WSI support on physical device 0");
+        if (log_setup) println(stderr, "[Vulkan] Error: No WSI support on physical device 0");
         exit(-1);
     }
 
@@ -233,13 +237,13 @@ static void FrameRender(ImGui_ImplVulkanH_Window *wd, ImDrawData *draw_data) {
     VkResult err = vkAcquireNextImageKHR(g_Device, wd->Swapchain, Constants::no_timeout, image_acquired_semaphore, VK_NULL_HANDLE, &wd->FrameIndex);
 
     if (err == VK_ERROR_OUT_OF_DATE_KHR) {
-        println(stderr, "[Vulkan] Error: vkAcquireNextImageKHR gave {} ({}). Rebuilding Swapchain and cancelling FrameRender.", err, static_cast<int>(err));
+        if (log_setup) println(stderr, "[Vulkan] Error: vkAcquireNextImageKHR gave {} ({}). Rebuilding Swapchain and cancelling FrameRender.", err, static_cast<int>(err));
         g_SwapChainRebuild = true;
         return;
     }
     if (err == VK_SUBOPTIMAL_KHR) {
         if (false) { // TODO: Uncomment this once we have swapchains actually implemented
-            println(stderr, "[Vulkan] Warning: vkAcquireNextImageKHR gave {} ({}). Rebuilding Swapchain.", err, static_cast<int>(err));
+            if (log_setup) println(stderr, "[Vulkan] Warning: vkAcquireNextImageKHR gave {} ({}). Rebuilding Swapchain.", err, static_cast<int>(err));
         }
         g_SwapChainRebuild = true;
     } else {
@@ -318,12 +322,12 @@ static void FramePresent(ImGui_ImplVulkanH_Window *wd) {
 
 void setup() {
     if (!SDL_Init(SDL_INIT_VIDEO)) {
-        println("[   SDL] Error: SDL_Init(): {}", SDL_GetError());
+        if (log_setup) println("[   SDL] Error: SDL_Init(): {}", SDL_GetError());
         abort();
     }
 
     float main_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
-    println("[   SDL] Info: main_scale = {}", main_scale);
+    if (log_setup) println("[   SDL] Info: main_scale = {}", main_scale);
 
     g_Window = SDL_CreateWindow(
         "VulkanEngine 2.0",
@@ -331,70 +335,71 @@ void setup() {
         static_cast<int>(Constants::window_height * main_scale),
         Constants::window_flags);
     if (!g_Window) {
-        println("[   SDL] Error: SDL_CreateWindow(): {}", SDL_GetError());
+        if (log_setup) println("[   SDL] Error: SDL_CreateWindow(): {}", SDL_GetError());
         abort();
     }
 
     std::vector<Extension> extensions = Vulkan::get_sdl_extensions();
-    println("[Vulkan] Info: There are {} SDL extensions", extensions.size());
+    if (log_setup) println("[Vulkan] Info: There are {} SDL extensions", extensions.size());
     for (const auto &ext : extensions) {
-        println("[Vulkan] Info: \t{}", ext);
+        if (log_setup) println("[Vulkan] Info: \t{}", ext);
     }
 
-    println("[Vulkan] Info: Starting Setup.");
+    if (log_setup) println("[Vulkan] Info: Starting Setup.");
     setup_vulkan(extensions);
-    println("[Vulkan] Info: Finished Setup.");
+    if (log_setup) println("[Vulkan] Info: Finished Setup.");
 
-    println("[Vulkan] Info: Creating Window Surfaces");
+    if (log_setup) println("[Vulkan] Info: Creating Window Surfaces");
     VkSurfaceKHR surface;
     if (SDL_Vulkan_CreateSurface(g_Window, g_Instance, g_Allocator, &surface) == 0) {
-        println(stderr, "Failed to create Vulkan Surface.");
+        if (log_setup) println(stderr, "Failed to create Vulkan Surface.");
         abort();
     }
-    println("[Vulkan] Info: Creating Framebuffers");
+    if (log_setup) println("[Vulkan] Info: Creating Framebuffers");
     int w, h;
     SDL_GetWindowSize(g_Window, &w, &h);
     g_WD = &g_MainWindowData;
 
-    println("[Vulkan] Info: Starting Window Setup");
+    if (log_setup) println("[Vulkan] Info: Starting Window Setup");
     { // Vulkan Window Setup
         setup_vulkan_window(g_WD, surface, w, h);
 
         SDL_SetWindowPosition(g_Window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
         SDL_ShowWindow(g_Window);
-        println("[Vulkan] Info: Finished Window Setup");
+        if (log_setup) println("[Vulkan] Info: Finished Window Setup");
     } // Vulkan Window Setup
 
-    println("[ IMGUI] Info: Setting up Context");
+    if (log_setup) println("[ IMGUI] Info: Setting up Context");
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     g_IO = &ImGui::GetIO();
     g_IO->ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     ImGui::StyleColorsDark();
 
-    println("[ IMGUI] Info: Setting up scaling");
+    if (log_setup) println("[ IMGUI] Info: Setting up scaling");
     ImGuiStyle &style = ImGui::GetStyle();
     style.ScaleAllSizes(main_scale);
     style.FontScaleDpi = main_scale;
 
-    println("[Render] Info: Setting up Backends");
+    if (log_setup) println("[Render] Info: Setting up Backends");
     ImGui_ImplSDL3_InitForVulkan(g_Window);
-    ImGui_ImplVulkan_InitInfo init_info = {
+    ImGui_ImplVulkan_InitInfo init_info{
         .ApiVersion = VK_API_VERSION_1_3,
         .Instance = g_Instance,
         .PhysicalDevice = g_PhysicalDevice,
         .Device = g_Device,
         .QueueFamily = g_QueueFamily,
         .Queue = g_Queue,
-        .PipelineCache = g_PipelineCache,
         .DescriptorPool = g_DescriptorPool,
         .RenderPass = g_WD->RenderPass,
-        .Subpass = 0,
         .MinImageCount = g_MinImageCount,
         .ImageCount = g_WD->ImageCount,
         .MSAASamples = VK_SAMPLE_COUNT_1_BIT,
+        .PipelineCache = g_PipelineCache,
+        .Subpass = 0,
         .Allocator = g_Allocator,
-        .CheckVkResultFn = Vulkan::check};
+        .CheckVkResultFn = Vulkan::check,
+    };
     ImGui_ImplVulkan_Init(&init_info);
 }
 
@@ -404,7 +409,7 @@ void cleanup() {
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
 
-    println("[Vulkan] Info: Starting cleanup.");
+    if (log_setup) println("[Vulkan] Info: Starting cleanup.");
     {
         auto f_vkDestroyDebugReportCallbackEXT = reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>(
             vkGetInstanceProcAddr(g_Instance, Vulkan::Strings::vkDestroyDebugReportCallbackEXT));
@@ -414,18 +419,18 @@ void cleanup() {
         }
     }
 
-    println("[Vulkan] Info: Cleaning up vulkan window");
+    if (log_setup) println("[Vulkan] Info: Cleaning up vulkan window");
     ImGui_ImplVulkanH_DestroyWindow(g_Instance, g_Device, &g_MainWindowData, g_Allocator);
 
     vkDestroyDescriptorPool(g_Device, g_DescriptorPool, g_Allocator);
     vkDestroyDevice(g_Device, g_Allocator);
     vkDestroyInstance(g_Instance, g_Allocator);
-    println("[Vulkan] Info: Finished cleanup.");
+    if (log_setup) println("[Vulkan] Info: Finished cleanup.");
 
-    println("[SDL] Info: Starting Cleanup");
+    if (log_setup) println("[   SDL] Info: Starting Cleanup");
     SDL_DestroyWindow(g_Window);
     SDL_Quit();
-    println("[SDL] Info: FinishedCleanup");
+    if (log_setup) println("[   SDL] Info: FinishedCleanup");
 }
 
 void recreate_swapchains_if_necessary() {

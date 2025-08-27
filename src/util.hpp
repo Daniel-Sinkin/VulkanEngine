@@ -14,6 +14,8 @@ constexpr int window_height = 720;
 
 SDL_WindowFlags window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
 
+constexpr bool log_setup = false;
+constexpr bool print_version = true;
 } // namespace DS::Constants
 
 namespace DS::Util {

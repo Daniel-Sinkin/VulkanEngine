@@ -38,10 +38,8 @@ using namespace DS;
 using Vulkan::Extension;
 using Vulkan::ValidationLayer;
 
-constexpr bool print_version = true;
-
 int main() {
-    if (print_version) Util::print_versions();
+    if (Constants::print_version) Util::print_versions();
 
     Engine::setup();
 
