@@ -39,7 +39,7 @@ using Vulkan::ValidationLayer;
 
 namespace DS::Engine {
 
-constexpr bool log_setup = false;
+constexpr bool log_setup = true;
 
 void setup_vulkan(std::vector<Vulkan::Extension> extensions) {
     VkResult err;
@@ -91,7 +91,7 @@ void setup_vulkan(std::vector<Vulkan::Extension> extensions) {
         auto f_vkCreateDebugReportCallbackEXT = reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>(
             vkGetInstanceProcAddr(g_Instance, Vulkan::Strings::vkCreateDebugReportCallbackEXT));
         if (!f_vkCreateDebugReportCallbackEXT) {
-            print(stderr, "[Vulkan] Error: Failed to setup debug report callback!");
+            println(stderr, "[Vulkan] Error: Failed to setup debug report callback!");
             abort();
         }
         VkDebugReportCallbackCreateInfoEXT debug_report_ci = {};
@@ -194,19 +194,17 @@ void setup_vulkan(std::vector<Vulkan::Extension> extensions) {
 
     if (log_setup) println("[Vulkan] Info: Creating Descriptor Pool");
     {
-        VkDescriptorPoolSize pool_sizes[] =
-            {
-                {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, IMGUI_IMPL_VULKAN_MINIMUM_IMAGE_SAMPLER_POOL_SIZE},
-            };
+        constexpr auto pool_sizes = std::to_array<VkDescriptorPoolSize>(
+            {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, Constants::descriptor_pool_count}});
         VkDescriptorPoolCreateInfo pool_info = {};
         pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         pool_info.maxSets = 0;
-        for (VkDescriptorPoolSize &pool_size : pool_sizes) {
+        for (const auto &pool_size : pool_sizes) {
             pool_info.maxSets += pool_size.descriptorCount;
         }
-        pool_info.poolSizeCount = static_cast<uint32_t>(IM_ARRAYSIZE(pool_sizes));
-        pool_info.pPoolSizes = pool_sizes;
+        pool_info.poolSizeCount = static_cast<uint32_t>(pool_sizes.size());
+        pool_info.pPoolSizes = pool_sizes.data();
         Vulkan::check(
             vkCreateDescriptorPool(
                 g_Device,
@@ -241,16 +239,16 @@ void setup_vulkan_window(ImGui_ImplVulkanH_Window *wd, VkSurfaceKHR surface, int
         request_surface_color_space);
 
     // Select Present Mode
-    VkPresentModeKHR present_modes[] = {VK_PRESENT_MODE_FIFO_KHR};
+    constexpr auto present_modes = std::to_array<VkPresentModeKHR>({VK_PRESENT_MODE_FIFO_KHR});
     wd->PresentMode = ImGui_ImplVulkanH_SelectPresentMode(
         g_PhysicalDevice,
         wd->Surface,
-        &present_modes[0],
-        IM_ARRAYSIZE(present_modes));
-    print("[Vulkan] Info: Selected PresentMode = {}\n", static_cast<int>(wd->PresentMode));
+        present_modes.data(),
+        present_modes.size());
+    println("[Vulkan] Info: Selected PresentMode = {}", Util::enum_to_number(wd->PresentMode));
 
     // Create SwapChain, RenderPass, Framebuffer, etc.
-    IM_ASSERT(g_MinImageCount >= 2);
+    static_assert(g_MinImageCount >= 2);
     ImGui_ImplVulkanH_CreateOrResizeWindow(
         g_Instance,
         g_PhysicalDevice,
@@ -269,13 +267,21 @@ static void FrameRender(ImGui_ImplVulkanH_Window *wd, ImDrawData *draw_data) {
     VkResult err = vkAcquireNextImageKHR(g_Device, wd->Swapchain, Constants::no_timeout, image_acquired_semaphore, VK_NULL_HANDLE, &wd->FrameIndex);
 
     if (err == VK_ERROR_OUT_OF_DATE_KHR) {
-        if (log_setup) println(stderr, "[Vulkan] Error: vkAcquireNextImageKHR gave {} ({}). Rebuilding Swapchain and cancelling FrameRender.", err, static_cast<int>(err));
+        if (log_setup) {
+            println(stderr,
+                "[Vulkan] Error: vkAcquireNextImageKHR gave {}. Rebuilding Swapchain and cancelling FrameRender.",
+                err);
+        }
         g_SwapChainRebuild = true;
         return;
     }
     if (err == VK_SUBOPTIMAL_KHR) {
         if (false) { // TODO: Uncomment this once we have swapchains actually implemented
-            if (log_setup) println(stderr, "[Vulkan] Warning: vkAcquireNextImageKHR gave {} ({}). Rebuilding Swapchain.", err, static_cast<int>(err));
+            if (log_setup) {
+                println(stderr,
+                    "[Vulkan] Warning: vkAcquireNextImageKHR gave {}. Rebuilding Swapchain.",
+                    err);
+            }
         }
         g_SwapChainRebuild = true;
     } else {

@@ -32,7 +32,7 @@ SDL_Window *g_Window = nullptr;
 
 ImGui_ImplVulkanH_Window g_MainWindowData;
 ImGui_ImplVulkanH_Window *g_WD = nullptr;
-uint32_t g_MinImageCount = 2;
+constexpr uint32_t g_MinImageCount = 2;
 bool g_SwapChainRebuild = false;
 
 ImGuiIO *g_IO;

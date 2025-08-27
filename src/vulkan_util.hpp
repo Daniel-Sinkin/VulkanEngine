@@ -53,7 +53,7 @@ struct formatter<VkResult> : formatter<string_view> {
     constexpr auto parse(format_parse_context &ctx) { return ctx.begin(); }
     template <class FormatContext>
     auto format(VkResult r, FormatContext &ctx) const {
-        return format_to(ctx.out(), "{} ({})", vk_result_to_string(r), static_cast<int>(r));
+        return format_to(ctx.out(), "{} ({})", vk_result_to_string(r), Util::enum_to_number(r));
     }
 };
 
@@ -92,7 +92,7 @@ struct formatter<VkPhysicalDeviceProperties> : formatter<string_view> {
             prop.driverVersion,
             prop.vendorID,
             prop.deviceID,
-            static_cast<int>(prop.deviceType),
+            Util::enum_to_number(prop.deviceType),
             prop.deviceName,
             Util::uuid_to_string(prop.pipelineCacheUUID));
     }
@@ -120,7 +120,9 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_report(
     (void)messageCode;
     (void)pUserData;
     (void)pLayerPrefix; // Unused arguments
-    println(stderr, "[Vulkan] Debug: ObjectType: {}\nMessage: {}\n", static_cast<int>(objectType), pMessage);
+    println(stderr,
+        "[Vulkan] Debug: ObjectType: {}\nMessage: {}\n",
+        Util::enum_to_number(objectType), pMessage);
     return VK_FALSE;
 }
 

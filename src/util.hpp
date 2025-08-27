@@ -3,6 +3,7 @@
 #include <format>
 #include <limits>
 #include <print>
+#include <type_traits>
 
 using std::print, std::println;
 
@@ -27,9 +28,18 @@ constexpr char HEX_charset[] = "0123456789ABCDEF";
 constexpr char null_terminator = '\0';
 
 constexpr uint32_t queue_familily_not_init = std::numeric_limits<uint32_t>::max();
+
+constexpr uint32_t descriptor_pool_count = 8;
 } // namespace DS::Constants
 
 namespace DS::Util {
+template <typename E>
+constexpr auto enum_to_number(E e) noexcept
+    -> std::underlying_type_t<E> {
+    static_assert(std::is_enum_v<E>, "enum_to_number requires an enum type");
+    return static_cast<std::underlying_type_t<E>>(e);
+}
+
 inline std::string uuid_to_string(const std::uint8_t (&uuid)[Constants::uuid_size]) {
     std::string s(Constants::uuid_string_length, Constants::null_terminator);
 
