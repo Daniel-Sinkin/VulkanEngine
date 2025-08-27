@@ -3,16 +3,17 @@
 #include <print>
 #include <vector>
 
-#include "imgui.h"
-#include "imgui_impl_sdl3.h"
-#include "imgui_impl_vulkan.h"
+#include <glm/glm.hpp>
+
+#include <imgui.h>
+#include <imgui_impl_sdl3.h>
+#include <imgui_impl_vulkan.h>
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_version.h>
 #include <SDL3/SDL_vulkan.h>
 
 #include <vulkan/vulkan.h>
-
 #ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
 #define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
 #endif
@@ -23,16 +24,15 @@
 #define VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR 0x00000001
 #endif
 
+#include "vulkan_util.hpp"
+
 using std::println, std::print;
 
 using VulkanExtension = const char *;
 using VulkanValidationLayer = const char *;
-using CString = const char *;
+using CString = const char *; // Assumed to be null terminated
 
-namespace DS::Strings {
-CString vkCreateDebugReportCallbackEXT = "vkCreateDebugReportCallbackEXT";
-CString vkDestroyDebugReportCallbackEXT = "vkDestroyDebugReportCallbackEXT";
-} // namespace DS::Strings
+using namespace DS;
 
 constexpr bool print_version = true;
 
@@ -50,26 +50,6 @@ ImGui_ImplVulkanH_Window g_MainWindowData;
 uint32_t g_MinImageCount = 2;
 bool g_SwapChainRebuild = false;
 
-VKAPI_ATTR VkBool32 VKAPI_CALL debug_report(
-    VkDebugReportFlagsEXT flags,
-    VkDebugReportObjectTypeEXT objectType,
-    uint64_t object,
-    size_t location,
-    int32_t messageCode,
-    const char *pLayerPrefix,
-    const char *pMessage,
-    void *pUserData) {
-
-    (void)flags;
-    (void)object;
-    (void)location;
-    (void)messageCode;
-    (void)pUserData;
-    (void)pLayerPrefix; // Unused arguments
-    println(stderr, "[Vulkan] Debug: ObjectType: {}\nMessage: {}\n", static_cast<int>(objectType), pMessage);
-    return VK_FALSE;
-}
-
 struct MySDLVersion {
     int maj;
     int min;
@@ -83,41 +63,6 @@ constexpr MySDLVersion decode_sdl_version(int version_encoded) {
         .mic = version_encoded % 1000};
 }
 
-constexpr std::string_view vk_result_to_string(VkResult r) {
-    switch (r) {
-    case VK_SUCCESS:
-        return "VK_SUCCESS";
-    case VK_NOT_READY:
-        return "VK_NOT_READY";
-    case VK_TIMEOUT:
-        return "VK_TIMEOUT";
-    case VK_INCOMPLETE:
-        return "VK_INCOMPLETE";
-    case VK_ERROR_OUT_OF_HOST_MEMORY:
-        return "VK_ERROR_OUT_OF_HOST_MEMORY";
-    case VK_ERROR_OUT_OF_DEVICE_MEMORY:
-        return "VK_ERROR_OUT_OF_DEVICE_MEMORY";
-    case VK_ERROR_INITIALIZATION_FAILED:
-        return "VK_ERROR_INITIALIZATION_FAILED";
-    case VK_ERROR_LAYER_NOT_PRESENT:
-        return "VK_ERROR_LAYER_NOT_PRESENT";
-    case VK_ERROR_EXTENSION_NOT_PRESENT:
-        return "VK_ERROR_EXTENSION_NOT_PRESENT";
-    case VK_ERROR_INCOMPATIBLE_DRIVER:
-        return "VK_ERROR_INCOMPATIBLE_DRIVER";
-    case VK_ERROR_SURFACE_LOST_KHR:
-        return "VK_ERROR_SURFACE_LOST_KHR";
-    case VK_ERROR_OUT_OF_DATE_KHR:
-        return "VK_ERROR_OUT_OF_DATE_KHR";
-    case VK_SUBOPTIMAL_KHR:
-        return "VK_SUBOPTIMAL_KHR";
-    case VK_ERROR_DEVICE_LOST:
-        return "VK_ERROR_DEVICE_LOST";
-    default:
-        return "Not supported, see https://registry.khronos.org/vulkan/specs/latest/man/html/VkResult.html";
-    }
-}
-
 namespace std {
 template <>
 struct std::formatter<MySDLVersion> : std::formatter<std::string> {
@@ -125,33 +70,7 @@ struct std::formatter<MySDLVersion> : std::formatter<std::string> {
         return std::format_to(ctx.out(), "{}.{}.{}", v.maj, v.min, v.mic);
     }
 };
-
-template <>
-struct formatter<VkResult> : formatter<string_view> {
-    constexpr auto parse(format_parse_context &ctx) { return ctx.begin(); }
-    template <class FormatContext>
-    auto format(VkResult r, FormatContext &ctx) const {
-        return format_to(ctx.out(), "{} ({})", vk_result_to_string(r), static_cast<int>(r));
-    }
-};
-
-template <>
-struct formatter<VkExtensionProperties> : formatter<std::string_view> {
-    constexpr auto parse(format_parse_context &ctx) { return ctx.begin(); }
-    template <class FormatContext>
-    auto format(VkExtensionProperties ext_prop, FormatContext &ctx) const {
-        return format_to(ctx.out(), "{} ({})",
-            ext_prop.extensionName,
-            ext_prop.specVersion);
-    }
-};
 } // namespace std
-
-void check_vk_result(VkResult err) {
-    if (err == VK_SUCCESS) return;
-    println(stderr, "[Vulkan] Error: VkResult = {}", err);
-    if (err < 0) abort();
-}
 
 void print_versions() {
     println("[Global] Info: Version Printout");
@@ -197,7 +116,7 @@ void setup_vulkan(std::vector<VulkanExtension> extensions) {
     std::vector<VkExtensionProperties> properties;
     vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, nullptr);
     properties.resize(properties_count);
-    check_vk_result(vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, properties.data()));
+    Vulkan::check(vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, properties.data()));
 
     println("[Vulkan] Info: Availiable Extensions");
     for (const auto &p : properties)
@@ -227,13 +146,13 @@ void setup_vulkan(std::vector<VulkanExtension> extensions) {
     { // Create Vulkan Instance
         create_info.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
         create_info.ppEnabledExtensionNames = extensions.data();
-        check_vk_result(vkCreateInstance(&create_info, g_Allocator, &g_Instance));
+        DS::Vulkan::check(vkCreateInstance(&create_info, g_Allocator, &g_Instance));
     }
 
     println("[Vulkan] Info: Setup the debug report callback");
     { // Setup the debug report callback
         auto f_vkCreateDebugReportCallbackEXT = reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>(
-            vkGetInstanceProcAddr(g_Instance, DS::Strings::vkCreateDebugReportCallbackEXT));
+            vkGetInstanceProcAddr(g_Instance, DS::Vulkan::Strings::vkCreateDebugReportCallbackEXT));
         if (!f_vkCreateDebugReportCallbackEXT) {
             print(stderr, "[Vulkan] Error: Failed to setup debug report callback!");
             abort();
@@ -241,9 +160,9 @@ void setup_vulkan(std::vector<VulkanExtension> extensions) {
         VkDebugReportCallbackCreateInfoEXT debug_report_ci = {};
         debug_report_ci.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
         debug_report_ci.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
-        debug_report_ci.pfnCallback = debug_report;
+        debug_report_ci.pfnCallback = DS::Vulkan::debug_report;
         debug_report_ci.pUserData = nullptr;
-        check_vk_result(f_vkCreateDebugReportCallbackEXT(g_Instance, &debug_report_ci, g_Allocator, &g_DebugReport));
+        DS::Vulkan::check(f_vkCreateDebugReportCallbackEXT(g_Instance, &debug_report_ci, g_Allocator, &g_DebugReport));
     }
 
     println("[Vulkan] Info: Select physical device");
@@ -297,7 +216,7 @@ void setup_vulkan(std::vector<VulkanExtension> extensions) {
         create_info.pQueueCreateInfos = queue_info;
         create_info.enabledExtensionCount = (uint32_t)device_extensions.size();
         create_info.ppEnabledExtensionNames = device_extensions.data();
-        check_vk_result(vkCreateDevice(
+        DS::Vulkan::check(vkCreateDevice(
             g_PhysicalDevice,
             &create_info,
             g_Allocator, &g_Device));
@@ -318,7 +237,7 @@ void setup_vulkan(std::vector<VulkanExtension> extensions) {
             pool_info.maxSets += pool_size.descriptorCount;
         pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
         pool_info.pPoolSizes = pool_sizes;
-        check_vk_result(
+        DS::Vulkan::check(
             vkCreateDescriptorPool(
                 g_Device,
                 &pool_info,
@@ -382,24 +301,20 @@ static void FrameRender(ImGui_ImplVulkanH_Window *wd, ImDrawData *draw_data) {
     if (err == VK_ERROR_OUT_OF_DATE_KHR)
         return;
     if (err != VK_SUBOPTIMAL_KHR)
-        check_vk_result(err);
+        DS::Vulkan::check(err);
 
     ImGui_ImplVulkanH_Frame *fd = &wd->Frames[wd->FrameIndex];
     {
-        err = vkWaitForFences(g_Device, 1, &fd->Fence, VK_TRUE, UINT64_MAX); // wait indefinitely instead of periodically checking
-        check_vk_result(err);
-
-        err = vkResetFences(g_Device, 1, &fd->Fence);
-        check_vk_result(err);
+        // Blocking wait
+        DS::Vulkan::check(vkWaitForFences(g_Device, 1, &fd->Fence, VK_TRUE, UINT64_MAX));
+        DS::Vulkan::check(vkResetFences(g_Device, 1, &fd->Fence));
     }
     {
-        err = vkResetCommandPool(g_Device, fd->CommandPool, 0);
-        check_vk_result(err);
+        DS::Vulkan::check(vkResetCommandPool(g_Device, fd->CommandPool, 0));
         VkCommandBufferBeginInfo info = {};
         info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         info.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        err = vkBeginCommandBuffer(fd->CommandBuffer, &info);
-        check_vk_result(err);
+        DS::Vulkan::check(vkBeginCommandBuffer(fd->CommandBuffer, &info));
     }
     {
         VkRenderPassBeginInfo info = {};
@@ -430,10 +345,8 @@ static void FrameRender(ImGui_ImplVulkanH_Window *wd, ImDrawData *draw_data) {
         info.signalSemaphoreCount = 1;
         info.pSignalSemaphores = &render_complete_semaphore;
 
-        err = vkEndCommandBuffer(fd->CommandBuffer);
-        check_vk_result(err);
-        err = vkQueueSubmit(g_Queue, 1, &info, fd->Fence);
-        check_vk_result(err);
+        DS::Vulkan::check(vkEndCommandBuffer(fd->CommandBuffer));
+        DS::Vulkan::check(vkQueueSubmit(g_Queue, 1, &info, fd->Fence));
     }
 }
 
@@ -454,8 +367,8 @@ static void FramePresent(ImGui_ImplVulkanH_Window *wd) {
     if (err == VK_ERROR_OUT_OF_DATE_KHR)
         return;
     if (err != VK_SUBOPTIMAL_KHR)
-        check_vk_result(err);
-    wd->SemaphoreIndex = (wd->SemaphoreIndex + 1) % wd->SemaphoreCount; // Now we can use the next set of semaphores
+        DS::Vulkan::check(err);
+    wd->SemaphoreIndex = (wd->SemaphoreIndex + 1) % wd->SemaphoreCount;
 }
 
 int main() {
@@ -499,22 +412,13 @@ int main() {
     ImGui_ImplVulkanH_Window *wd = &g_MainWindowData;
 
     println("[Vulkan] Info: Starting Window Setup");
-    setup_vulkan_window(wd, surface, w, h);
-    println("[Vulkan] Info: Finished Window Setup");
+    { // Vulkan Window Setup
+        setup_vulkan_window(wd, surface, w, h);
 
-    SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
-    SDL_ShowWindow(window);
-    println("[Vulkan] Info: Finished Window Setup.");
-
-    println("[Vulkan] Info: Starting cleanup.");
-    {
-        auto f_vkDestroyDebugReportCallbackEXT = reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>(
-            vkGetInstanceProcAddr(g_Instance, DS::Strings::vkDestroyDebugReportCallbackEXT));
-        if (f_vkDestroyDebugReportCallbackEXT) {
-            f_vkDestroyDebugReportCallbackEXT(g_Instance, g_DebugReport, g_Allocator);
-            g_DebugReport = nullptr;
-        }
-    }
+        SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+        SDL_ShowWindow(window);
+        println("[Vulkan] Info: Finished Window Setup");
+    } // Vulkan Window Setup
 
     println("[ IMGUI] Info: Setting up Context");
     IMGUI_CHECKVERSION();
@@ -546,12 +450,11 @@ int main() {
     init_info.ImageCount = wd->ImageCount;
     init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
     init_info.Allocator = g_Allocator;
-    init_info.CheckVkResultFn = check_vk_result;
+    init_info.CheckVkResultFn = DS::Vulkan::check;
     ImGui_ImplVulkan_Init(&init_info);
 
     bool show_demo_window = true;
-    bool show_another_window = false;
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.0f);
 
     bool done = false;
     while (!done) {
@@ -576,30 +479,23 @@ int main() {
             g_SwapChainRebuild = false;
         }
 
-        // Start the Dear ImGui frame
         ImGui_ImplVulkan_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
-
-        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
         {
             static float f = 0.0f;
             static int counter = 0;
 
-            ImGui::Begin("Hello, world!"); // Create a window called "Hello, world!" and append into it.
+            ImGui::Begin("Hello, Window!");
 
-            ImGui::Text("This is some useful text.");          // Display some text (you can use a format strings too)
-            ImGui::Checkbox("Demo Window", &show_demo_window); // Edit bools storing our window open/close state
-            ImGui::Checkbox("Another Window", &show_another_window);
+            ImGui::Text("This is some useful text.");
+            ImGui::Checkbox("Demo Window", &show_demo_window);
 
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);             // Edit 1 float using a slider from 0.0f to 1.0f
-            ImGui::ColorEdit3("clear color", (float *)&clear_color); // Edit 3 floats representing a color
+            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
+            ImGui::ColorEdit3("clear color", (float *)&clear_color);
 
-            if (ImGui::Button("Button")) // Buttons return true when clicked (most widgets return true when edited/activated)
-                counter++;
+            if (ImGui::Button("Button")) counter++;
             ImGui::SameLine();
             ImGui::Text("counter = %d", counter);
 
@@ -607,16 +503,6 @@ int main() {
             ImGui::End();
         }
 
-        // 3. Show another simple window.
-        if (show_another_window) {
-            ImGui::Begin("Another Window", &show_another_window); // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            ImGui::Text("Hello from another window!");
-            if (ImGui::Button("Close Me"))
-                show_another_window = false;
-            ImGui::End();
-        }
-
-        // Rendering
         ImGui::Render();
         ImDrawData *draw_data = ImGui::GetDrawData();
         const bool is_minimized = (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f);
@@ -630,10 +516,20 @@ int main() {
         }
     }
 
-    check_vk_result(vkDeviceWaitIdle(g_Device));
+    DS::Vulkan::check(vkDeviceWaitIdle(g_Device));
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
+
+    println("[Vulkan] Info: Starting cleanup.");
+    {
+        auto f_vkDestroyDebugReportCallbackEXT = reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>(
+            vkGetInstanceProcAddr(g_Instance, Vulkan::Strings::vkDestroyDebugReportCallbackEXT));
+        if (f_vkDestroyDebugReportCallbackEXT) {
+            f_vkDestroyDebugReportCallbackEXT(g_Instance, g_DebugReport, g_Allocator);
+            g_DebugReport = nullptr;
+        }
+    }
 
     println("[Vulkan] Info: Cleaning up vulkan window");
     ImGui_ImplVulkanH_DestroyWindow(g_Instance, g_Device, &g_MainWindowData, g_Allocator);
