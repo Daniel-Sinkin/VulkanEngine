@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <cstring>
 #include <format>
 #include <print>
@@ -132,8 +133,18 @@ void setup_vulkan(std::vector<Vulkan::Extension> extensions) {
 
     if (log_setup) println("[Vulkan] Info: Select graphics queue family");
     {
-        g_QueueFamily = ImGui_ImplVulkanH_SelectQueueFamilyIndex(g_PhysicalDevice);
-        if (g_QueueFamily == static_cast<uint32_t>(-1)) {
+        uint32_t count;
+        vkGetPhysicalDeviceQueueFamilyProperties(g_PhysicalDevice, &count, nullptr);
+        ImVector<VkQueueFamilyProperties> queues_properties;
+        queues_properties.resize((int)count);
+        vkGetPhysicalDeviceQueueFamilyProperties(g_PhysicalDevice, &count, queues_properties.Data);
+        for (uint32_t i = 0; i < count; i++) {
+            if (queues_properties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+                g_QueueFamily = i;
+                break;
+            }
+        }
+        if (g_QueueFamily == Constants::queue_familily_not_init) {
             if (log_setup) println(stderr, "[Vulkan] Error: Failed to select graphics queue family!");
             abort();
         }
@@ -142,7 +153,7 @@ void setup_vulkan(std::vector<Vulkan::Extension> extensions) {
     if (log_setup) println("[Vulkan] Info: Creating Logical Device (with 1 queue)");
     {
         std::vector<Extension> device_extensions;
-        device_extensions.push_back("VK_KHR_swapchain");
+        device_extensions.push_back(Vulkan::Strings::extension_swapchain);
 
         uint32_t properties_count;
         std::vector<VkExtensionProperties> properties;
@@ -172,7 +183,7 @@ void setup_vulkan(std::vector<Vulkan::Extension> extensions) {
         create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
         create_info.queueCreateInfoCount = sizeof(queue_info) / sizeof(queue_info[0]);
         create_info.pQueueCreateInfos = queue_info;
-        create_info.enabledExtensionCount = (uint32_t)device_extensions.size();
+        create_info.enabledExtensionCount = static_cast<uint32_t>(device_extensions.size());
         create_info.ppEnabledExtensionNames = device_extensions.data();
         Vulkan::check(vkCreateDevice(
             g_PhysicalDevice,
@@ -194,7 +205,7 @@ void setup_vulkan(std::vector<Vulkan::Extension> extensions) {
         for (VkDescriptorPoolSize &pool_size : pool_sizes) {
             pool_info.maxSets += pool_size.descriptorCount;
         }
-        pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
+        pool_info.poolSizeCount = static_cast<uint32_t>(IM_ARRAYSIZE(pool_sizes));
         pool_info.pPoolSizes = pool_sizes;
         Vulkan::check(
             vkCreateDescriptorPool(
@@ -215,18 +226,19 @@ void setup_vulkan_window(ImGui_ImplVulkanH_Window *wd, VkSurfaceKHR surface, int
         wd->Surface,
         &res);
     if (res != VK_TRUE) {
-        if (log_setup) println(stderr, "[Vulkan] Error: No WSI support on physical device 0");
+        if (log_setup) println(stderr, "[Vulkan] Error: No WSI (Window System Integration) support on physical device 0");
         exit(-1);
     }
 
-    const VkFormat requestSurfaceImageFormat[] = {VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8_UNORM, VK_FORMAT_R8G8B8_UNORM};
-    const VkColorSpaceKHR requestSurfaceColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+    constexpr auto request_surface_image_formats = std::to_array(
+        {VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8_UNORM, VK_FORMAT_R8G8B8_UNORM});
+    const VkColorSpaceKHR request_surface_color_space = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
     wd->SurfaceFormat = ImGui_ImplVulkanH_SelectSurfaceFormat(
         g_PhysicalDevice,
         wd->Surface,
-        requestSurfaceImageFormat,
-        (size_t)IM_ARRAYSIZE(requestSurfaceImageFormat),
-        requestSurfaceColorSpace);
+        request_surface_image_formats.data(),
+        request_surface_image_formats.size(),
+        request_surface_color_space);
 
     // Select Present Mode
     VkPresentModeKHR present_modes[] = {VK_PRESENT_MODE_FIFO_KHR};

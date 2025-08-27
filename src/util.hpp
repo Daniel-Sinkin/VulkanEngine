@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <format>
+#include <limits>
 #include <print>
 
 using std::print, std::println;
@@ -24,6 +25,8 @@ static_assert(uuid_string_length == 47);
 constexpr char HEX_charset[] = "0123456789ABCDEF";
 
 constexpr char null_terminator = '\0';
+
+constexpr uint32_t queue_familily_not_init = std::numeric_limits<uint32_t>::max();
 } // namespace DS::Constants
 
 namespace DS::Util {

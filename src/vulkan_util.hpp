@@ -156,6 +156,7 @@ const char *vkCreateDebugReportCallbackEXT = "vkCreateDebugReportCallbackEXT";
 const char *vkDestroyDebugReportCallbackEXT = "vkDestroyDebugReportCallbackEXT";
 
 Vulkan::Extension extension_debug_report = "VK_EXT_debug_report";
+Vulkan::Extension extension_swapchain = "VK_KHR_swapchain";
 
 Vulkan::ValidationLayer layer_validation = "VK_LAYER_KHRONOS_validation";
 } // namespace Strings
