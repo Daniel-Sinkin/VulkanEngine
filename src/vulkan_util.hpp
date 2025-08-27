@@ -6,7 +6,11 @@
 
 #include <vulkan/vulkan.h>
 
+#include "util.hpp"
+
 using std::println, std::print;
+
+using namespace DS;
 
 constexpr std::string_view vk_result_to_string(VkResult r) {
     switch (r) {
@@ -61,6 +65,36 @@ struct formatter<VkExtensionProperties> : formatter<std::string_view> {
         return format_to(ctx.out(), "{} ({})",
             ext_prop.extensionName,
             ext_prop.specVersion);
+    }
+};
+
+template <>
+struct formatter<VkPhysicalDeviceProperties> : formatter<string_view> {
+    constexpr auto parse(format_parse_context &ctx) { return ctx.begin(); }
+
+    template <class FormatContext>
+    auto format(const VkPhysicalDeviceProperties &prop, FormatContext &ctx) const {
+        return format_to(
+            ctx.out(),
+            "VkPhysicalDeviceProperties {{\n"
+            "\tapiVersion: {} ({}.{}.{})\n"
+            "\tdriverVersion: {}\n"
+            "\tvendorID: {}\n"
+            "\tdeviceID: {}\n"
+            "\tdeviceType: {}\n"
+            "\tdeviceName: {}\n"
+            "\tpipelineCacheUUID: {}\n"
+            "}}",
+            prop.apiVersion,
+            VK_VERSION_MAJOR(prop.apiVersion),
+            VK_VERSION_MINOR(prop.apiVersion),
+            VK_VERSION_PATCH(prop.apiVersion),
+            prop.driverVersion,
+            prop.vendorID,
+            prop.deviceID,
+            static_cast<int>(prop.deviceType),
+            prop.deviceName,
+            Util::uuid_to_string(prop.pipelineCacheUUID));
     }
 };
 } // namespace std

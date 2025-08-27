@@ -103,10 +103,30 @@ void setup_vulkan(std::vector<Vulkan::Extension> extensions) {
 
     if (log_setup) println("[Vulkan] Info: Select physical device");
     {
-        g_PhysicalDevice = ImGui_ImplVulkanH_SelectPhysicalDevice(g_Instance);
-        if (g_PhysicalDevice == VK_NULL_HANDLE) {
-            if (log_setup) println(stderr, "[Vulkan] Error: Failed to select physical device!");
+        uint32_t gpu_count;
+        Vulkan::check(vkEnumeratePhysicalDevices(g_Instance, &gpu_count, nullptr));
+        if (gpu_count == 0) {
+            println("[Vulkan] Error: No physical devices found. Aborting!");
             abort();
+        }
+        std::vector<VkPhysicalDevice> gpus;
+        gpus.resize(gpu_count);
+        Vulkan::check(vkEnumeratePhysicalDevices(g_Instance, &gpu_count, gpus.data()));
+
+        for (auto &gpu : gpus) {
+            VkPhysicalDeviceProperties properties;
+            vkGetPhysicalDeviceProperties(gpu, &properties);
+            if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+                println("[VULKAN] Info: Found suitable GPU\n{}", properties);
+                g_PhysicalDevice = gpu;
+            }
+        }
+        if (g_PhysicalDevice == VK_NULL_HANDLE) {
+            VkPhysicalDevice fallback_gpu = gpus[0];
+            VkPhysicalDeviceProperties properties;
+            vkGetPhysicalDeviceProperties(fallback_gpu, &properties);
+            println("[Vulkan] Warning: Didn't find a discrete gpu, falling back to first gpu\n{}", properties);
+            g_PhysicalDevice = fallback_gpu;
         }
     }
 
