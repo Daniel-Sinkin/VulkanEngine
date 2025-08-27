@@ -76,6 +76,12 @@
         "stop_token": "cpp",
         "thread": "cpp",
         "cinttypes": "cpp",
-        "print": "cpp"
+        "print": "cpp",
+        "clocale": "cpp",
+        "condition_variable": "cpp",
+        "cwctype": "cpp",
+        "deque": "cpp",
+        "execution": "cpp",
+        "text_encoding": "cpp"
     }
 }

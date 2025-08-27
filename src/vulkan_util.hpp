@@ -1,3 +1,4 @@
+#pragma once
 #include <cstring>
 #include <format>
 #include <print>
@@ -66,8 +67,8 @@ struct formatter<VkExtensionProperties> : formatter<std::string_view> {
 
 namespace DS {
 namespace Vulkan {
-using VulkanExtension = const char *;
-using VulkanValidationLayer = const char *;
+using Extension = const char *;
+using ValidationLayer = const char *;
 
 VKAPI_ATTR VkBool32 VKAPI_CALL debug_report(
     VkDebugReportFlagsEXT flags,
@@ -95,9 +96,34 @@ void check(VkResult err) {
     if (err < 0) abort();
 }
 
+std::vector<Extension> get_sdl_extensions() {
+    uint32_t sdl_extensions_count = 0;
+    const Extension *sdl_extensions = SDL_Vulkan_GetInstanceExtensions(&sdl_extensions_count);
+    std::vector<const char *> extensions;
+    for (uint32_t n = 0; n < sdl_extensions_count; ++n) {
+        extensions.push_back(sdl_extensions[n]);
+    }
+    return extensions;
+}
+
+bool check_extension(const std::vector<VkExtensionProperties> &properties, Extension extension) {
+    for (const auto &p : properties) {
+        if (strcmp(p.extensionName, extension) == 0) {
+            println("[Vulkan] Info: Extension {} is availiable.", extension);
+            return true;
+        }
+    }
+    println("[Vulkan] Warning: Extension {} is not availiable.", extension);
+    return false;
+}
+
 namespace Strings {
 const char *vkCreateDebugReportCallbackEXT = "vkCreateDebugReportCallbackEXT";
 const char *vkDestroyDebugReportCallbackEXT = "vkDestroyDebugReportCallbackEXT";
+
+Vulkan::Extension extension_debug_report = "VK_EXT_debug_report";
+
+Vulkan::ValidationLayer layer_validation = "VK_LAYER_KHRONOS_validation";
 } // namespace Strings
 } // namespace Vulkan
 } // namespace DS
