@@ -368,8 +368,8 @@ void setup() {
     println("[ IMGUI] Info: Setting up Context");
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    g_IO = ImGui::GetIO();
-    g_IO.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    g_IO = &ImGui::GetIO();
+    g_IO->ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     ImGui::StyleColorsDark();
 
     println("[ IMGUI] Info: Setting up scaling");
@@ -427,4 +427,27 @@ void cleanup() {
     SDL_Quit();
     println("[SDL] Info: FinishedCleanup");
 }
+
+void recreate_swapchains_if_necessary() {
+    int fb_width, fb_height;
+    SDL_GetWindowSize(g_Window, &fb_width, &fb_height);
+    bool positive_size = (fb_width > 0) && (fb_height > 0);
+    bool window_wrong_size = g_WD->Width != fb_width || g_WD->Height != fb_height;
+    if (positive_size && (g_SwapChainRebuild || window_wrong_size)) {
+        ImGui_ImplVulkan_SetMinImageCount(g_MinImageCount);
+        ImGui_ImplVulkanH_CreateOrResizeWindow(
+            g_Instance,
+            g_PhysicalDevice,
+            g_Device,
+            &g_MainWindowData,
+            g_QueueFamily,
+            g_Allocator,
+            fb_width,
+            fb_height,
+            g_MinImageCount);
+        g_MainWindowData.FrameIndex = 0;
+        g_SwapChainRebuild = false;
+    }
+}
+
 } // namespace DS::Engine

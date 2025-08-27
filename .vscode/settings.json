@@ -82,6 +82,7 @@
         "cwctype": "cpp",
         "deque": "cpp",
         "execution": "cpp",
-        "text_encoding": "cpp"
+        "text_encoding": "cpp",
+        "any": "cpp"
     }
 }

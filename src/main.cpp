@@ -26,6 +26,7 @@
 
 #include "engine.hpp"
 #include "global.hpp"
+#include "io.hpp"
 #include "util.hpp"
 #include "vulkan_util.hpp"
 
@@ -46,46 +47,16 @@ int main() {
     bool show_demo_window = true;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.0f);
 
-    bool is_running = true;
-    while (is_running) {
+    while (g_IsRunning) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
-            ImGui_ImplSDL3_ProcessEvent(&event);
-            if (event.type == SDL_EVENT_QUIT) {
-                println("[   SDL] Info: Got SDL_EVENT_QUIT event");
-                is_running = false;
-            }
-            SDL_WindowID window_id = SDL_GetWindowID(g_Window);
-            if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == window_id) {
-                println(
-                    "[   SDL] Info: Get SDL_EVENT_WINDOW_CLOSE_REQUESTED on current window ({})",
-                    window_id);
-                is_running = false;
-            }
+            IO::handle_event(event);
         }
         if (SDL_GetWindowFlags(g_Window) & SDL_WINDOW_MINIMIZED) {
             SDL_Delay(10);
             continue;
         }
-        int fb_width, fb_height;
-        SDL_GetWindowSize(g_Window, &fb_width, &fb_height);
-        bool positive_size = (fb_width > 0) && (fb_height > 0);
-        bool window_wrong_size = g_WD->Width != fb_width || g_WD->Height != fb_height;
-        if (positive_size && (g_SwapChainRebuild || window_wrong_size)) {
-            ImGui_ImplVulkan_SetMinImageCount(g_MinImageCount);
-            ImGui_ImplVulkanH_CreateOrResizeWindow(
-                g_Instance,
-                g_PhysicalDevice,
-                g_Device,
-                &g_MainWindowData,
-                g_QueueFamily,
-                g_Allocator,
-                fb_width,
-                fb_height,
-                g_MinImageCount);
-            g_MainWindowData.FrameIndex = 0;
-            g_SwapChainRebuild = false;
-        }
+        Engine::recreate_swapchains_if_necessary();
 
         ImGui_ImplVulkan_NewFrame();
         ImGui_ImplSDL3_NewFrame();
@@ -107,7 +78,7 @@ int main() {
             ImGui::SameLine();
             ImGui::Text("counter = %d", counter);
 
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / g_IO.Framerate, g_IO.Framerate);
+            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / g_IO->Framerate, g_IO->Framerate);
             ImGui::End();
         }
 

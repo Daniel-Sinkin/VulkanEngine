@@ -31,4 +31,6 @@ ImGui_ImplVulkanH_Window *g_WD = nullptr;
 uint32_t g_MinImageCount = 2;
 bool g_SwapChainRebuild = false;
 
-ImGuiIO g_IO;
+ImGuiIO *g_IO;
+
+bool g_IsRunning = true;
